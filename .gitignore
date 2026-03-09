@@ -1,0 +1,23 @@
+# .env (contains secrets – NEVER commit)
+.env
+
+# Build outputs
+bin/
+obj/
+
+# VS / Rider
+.vs/
+.idea/
+*.user
+
+# Logs
+*.log
+
+# Uploads (user-generated content)
+wwwroot/uploads/
+
+# Migrations (optional – you may want to track these)
+# */Migrations/
+
+# Docker
+*.dockerignore

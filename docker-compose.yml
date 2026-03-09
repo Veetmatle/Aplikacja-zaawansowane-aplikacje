@@ -1,0 +1,58 @@
+version: '3.9'
+
+services:
+  # ── MSSQL ──────────────────────────────────────────────────────────────────
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: shopapp_mssql
+    restart: unless-stopped
+    environment:
+      SA_PASSWORD: ${MSSQL_SA_PASSWORD}
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: "Express"     # Free tier; change to Developer/Standard as needed
+    ports:
+      - "1433:1433"
+    volumes:
+      - mssql_data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P '${MSSQL_SA_PASSWORD}' -Q 'SELECT 1' -No || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    networks:
+      - shopapp_net
+
+  # ── API ─────────────────────────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: shopapp_api
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__DefaultConnection: "Server=mssql;Database=ShopApp;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True;"
+      Jwt__Key: ${JWT_SECRET_KEY}
+      Jwt__Issuer: ShopApp
+      Jwt__Audience: ShopAppUsers
+      Jwt__ExpiryHours: "8"
+      Gemini__ApiKey: ${GEMINI_API_KEY}
+    ports:
+      - "8080:8080"
+    volumes:
+      - uploads_data:/app/wwwroot/uploads
+    depends_on:
+      mssql:
+        condition: service_healthy
+    networks:
+      - shopapp_net
+
+volumes:
+  mssql_data:
+  uploads_data:
+
+networks:
+  shopapp_net:
+    driver: bridge
