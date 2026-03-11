@@ -18,3 +18,13 @@ public interface IDateTimeService
 {
     DateTime UtcNow { get; }
 }
+
+/// <summary>
+/// Fire-and-forget view count tracking.
+/// Implementations buffer increments and flush to DB asynchronously.
+/// </summary>
+public interface IViewCountTracker
+{
+    void Track(Guid itemId);
+}
+

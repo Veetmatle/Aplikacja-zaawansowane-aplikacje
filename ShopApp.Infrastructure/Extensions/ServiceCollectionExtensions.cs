@@ -78,6 +78,14 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IDateTimeService, DateTimeService>();
         services.AddScoped<IPaymentGateway, Przelewy24Service>();
 
+        // ── ViewCount — fire-and-forget via Channel + BackgroundService ───────
+        services.AddSingleton<ViewCountChannel>();
+        services.AddSingleton<IViewCountTracker>(sp => sp.GetRequiredService<ViewCountChannel>());
+        services.AddHostedService<ViewCountBackgroundService>();
+
+        // ── Expired cart cleanup — periodic background job ────────────────────
+        services.AddHostedService<ExpiredCartCleanupService>();
+
         // ── HTTP clients ──────────────────────────────────────────────────────
         services.AddHttpClient("Gemini");
         services.AddHttpClient("Przelewy24", client =>

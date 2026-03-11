@@ -15,6 +15,12 @@ public class Item : BaseEntity
     public int ViewCount { get; set; } = 0;
     public DateTime? ExpiresAt { get; set; }
 
+    /// <summary>
+    /// Optimistic concurrency token — prevents overselling when multiple buyers
+    /// attempt to purchase the last item simultaneously.
+    /// </summary>
+    public byte[] RowVersion { get; set; } = null!;
+
     // Foreign keys
     public Guid CategoryId { get; set; }
     public Guid SellerId { get; set; }

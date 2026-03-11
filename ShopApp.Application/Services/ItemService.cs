@@ -2,23 +2,30 @@ using ShopApp.Application.Common;
 using ShopApp.Application.DTOs.Item;
 using ShopApp.Application.Interfaces;
 using ShopApp.Core.Interfaces.Repositories;
+using ShopApp.Core.Interfaces.Services;
 
 namespace ShopApp.Application.Services;
 
 /// <summary>
 /// Item CRUD - only authenticated users can create/edit/delete.
 /// Guests and authenticated users can read.
-/// TODO: Implement full logic using IItemRepository.
+/// ViewCount is tracked asynchronously via IViewCountTracker to avoid
+/// synchronous DB writes on every GET request.
 /// </summary>
 public class ItemService : IItemService
 {
     private readonly IItemRepository _itemRepository;
     private readonly ICategoryRepository _categoryRepository;
+    private readonly IViewCountTracker _viewCountTracker;
 
-    public ItemService(IItemRepository itemRepository, ICategoryRepository categoryRepository)
+    public ItemService(
+        IItemRepository itemRepository,
+        ICategoryRepository categoryRepository,
+        IViewCountTracker viewCountTracker)
     {
         _itemRepository = itemRepository;
         _categoryRepository = categoryRepository;
+        _viewCountTracker = viewCountTracker;
     }
 
     public async Task<Result<PagedResult<ItemSummaryDto>>> GetItemsAsync(ItemQueryDto query, CancellationToken ct = default)
@@ -41,9 +48,8 @@ public class ItemService : IItemService
     {
         var item = await _itemRepository.GetWithDetailsAsync(id, ct);
         if (item is null) return Result<ItemDto>.NotFound();
-        // Increment view count
-        item.ViewCount++;
-        await _itemRepository.UpdateAsync(item, ct);
+        // Fire-and-forget view count increment — no synchronous DB write on reads
+        _viewCountTracker.Track(item.Id);
         return Result<ItemDto>.Success(MapToDto(item));
     }
 

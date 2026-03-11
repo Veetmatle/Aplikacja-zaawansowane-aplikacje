@@ -3,70 +3,112 @@ using ShopApp.Application.DTOs.Order;
 using ShopApp.Application.Interfaces;
 using ShopApp.Core.Entities;
 using ShopApp.Core.Enums;
+using ShopApp.Core.Exceptions;
+using ShopApp.Core.Interfaces;
 using ShopApp.Core.Interfaces.Repositories;
 
 namespace ShopApp.Application.Services;
 
 /// <summary>
 /// Order creation from cart, status updates, history.
-/// TODO: Integrate payment gateway.
+/// Uses IUnitOfWork for transactional multi-record operations.
+/// Handles optimistic concurrency on Item.Quantity with retry.
 /// </summary>
 public class OrderService : IOrderService
 {
+    private const int MaxConcurrencyRetries = 3;
+
     private readonly IOrderRepository _orderRepository;
     private readonly ICartRepository _cartRepository;
     private readonly IItemRepository _itemRepository;
+    private readonly IUnitOfWork _unitOfWork;
 
-    public OrderService(IOrderRepository orderRepository, ICartRepository cartRepository, IItemRepository itemRepository)
+    public OrderService(
+        IOrderRepository orderRepository,
+        ICartRepository cartRepository,
+        IItemRepository itemRepository,
+        IUnitOfWork unitOfWork)
     {
         _orderRepository = orderRepository;
         _cartRepository = cartRepository;
         _itemRepository = itemRepository;
+        _unitOfWork = unitOfWork;
     }
 
     public async Task<Result<OrderDto>> CreateFromCartAsync(Guid userId, CreateOrderDto dto, CancellationToken ct = default)
     {
-        var cart = await _cartRepository.GetByUserIdAsync(userId, ct);
-        if (cart is null || !cart.Items.Any())
-            return Result<OrderDto>.Failure("Cart is empty.");
-
-        var order = new Order
+        for (int attempt = 0; attempt < MaxConcurrencyRetries; attempt++)
         {
-            OrderNumber = GenerateOrderNumber(),
-            BuyerId = userId,
-            ShippingFirstName = dto.FirstName,
-            ShippingLastName = dto.LastName,
-            ShippingAddress = dto.Address,
-            ShippingCity = dto.City,
-            ShippingPostalCode = dto.PostalCode,
-            ShippingCountry = dto.Country,
-            Notes = dto.Notes,
-        };
+            var cart = await _cartRepository.GetByUserIdAsync(userId, ct);
+            if (cart is null || !cart.Items.Any())
+                return Result<OrderDto>.Failure("Cart is empty.");
 
-        foreach (var cartItem in cart.Items)
-        {
-            var item = await _itemRepository.GetByIdAsync(cartItem.ItemId, ct);
-            if (item is null || item.Quantity < cartItem.Quantity)
-                return Result<OrderDto>.Failure($"Item '{cartItem.Item?.Title}' is unavailable.");
-
-            order.Items.Add(new OrderItem
+            await _unitOfWork.BeginTransactionAsync(ct);
+            try
             {
-                ItemId = cartItem.ItemId,
-                Quantity = cartItem.Quantity,
-                UnitPrice = item.Price,
-                ItemTitleSnapshot = item.Title,
-            });
+                var order = new Order
+                {
+                    OrderNumber = GenerateOrderNumber(),
+                    BuyerId = userId,
+                    ShippingFirstName = dto.FirstName,
+                    ShippingLastName = dto.LastName,
+                    ShippingAddress = dto.Address,
+                    ShippingCity = dto.City,
+                    ShippingPostalCode = dto.PostalCode,
+                    ShippingCountry = dto.Country,
+                    Notes = dto.Notes,
+                };
 
-            item.Quantity -= cartItem.Quantity;
-            await _itemRepository.UpdateAsync(item, ct);
+                foreach (var cartItem in cart.Items)
+                {
+                    var item = await _itemRepository.GetByIdAsync(cartItem.ItemId, ct);
+                    if (item is null || item.Quantity < cartItem.Quantity)
+                        return Result<OrderDto>.Failure($"Item '{cartItem.Item?.Title}' is unavailable or insufficient stock.");
+
+                    order.Items.Add(new OrderItem
+                    {
+                        ItemId = cartItem.ItemId,
+                        Quantity = cartItem.Quantity,
+                        UnitPrice = item.Price,
+                        ItemTitleSnapshot = item.Title,
+                    });
+
+                    item.Quantity -= cartItem.Quantity;
+                    await _itemRepository.UpdateAsync(item, ct); // may throw ConcurrencyException
+                }
+
+                order.TotalAmount = order.Items.Sum(i => i.UnitPrice * i.Quantity);
+                await _orderRepository.AddAsync(order, ct);
+
+                // Clear cart
+                foreach (var cartItem in cart.Items.ToList())
+                    await _cartRepository.RemoveCartItemAsync(cartItem, ct);
+                cart.Items.Clear();
+
+                await _unitOfWork.CommitTransactionAsync(ct);
+                return Result<OrderDto>.Success(MapToDto(order));
+            }
+            catch (ConcurrencyException) when (attempt < MaxConcurrencyRetries - 1)
+            {
+                // Concurrency conflict — another buyer modified item stock.
+                // Rollback and retry with fresh data.
+                await _unitOfWork.RollbackTransactionAsync(ct);
+                continue;
+            }
+            catch (ConcurrencyException)
+            {
+                await _unitOfWork.RollbackTransactionAsync(ct);
+                return Result<OrderDto>.Failure(
+                    "Unable to complete order due to concurrent stock changes. Please try again.");
+            }
+            catch
+            {
+                await _unitOfWork.RollbackTransactionAsync(ct);
+                throw;
+            }
         }
 
-        order.TotalAmount = order.Items.Sum(i => i.UnitPrice * i.Quantity);
-        await _orderRepository.AddAsync(order, ct);
-        cart.Items.Clear();
-        await _cartRepository.UpdateAsync(cart, ct);
-
-        return Result<OrderDto>.Success(MapToDto(order));
+        return Result<OrderDto>.Failure("Unable to complete order. Please try again.");
     }
 
     public async Task<Result<OrderDto>> GetByIdAsync(Guid orderId, Guid requestingUserId, CancellationToken ct = default)

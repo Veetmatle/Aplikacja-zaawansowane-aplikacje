@@ -1,6 +1,7 @@
 using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using ShopApp.Core.Common;
+using ShopApp.Core.Exceptions;
 using ShopApp.Core.Interfaces.Repositories;
 using ShopApp.Infrastructure.Data;
 
@@ -38,18 +39,19 @@ public class Repository<T> : IRepository<T> where T : class
         var entry = _context.Entry(entity);
         
         if (entry.State == EntityState.Detached)
-        {
-            // Detached entity — attach and mark as Modified
             _dbSet.Update(entity);
-        }
         else
-        {
-            // Already tracked — detect new children added to navigation properties.
-            // Run DetectChanges so EF picks up new entities added to tracked collections.
             _context.ChangeTracker.DetectChanges();
-        }
 
-        await _context.SaveChangesAsync(ct);
+        try
+        {
+            await _context.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            throw new ConcurrencyException(
+                "A concurrency conflict occurred while updating the entity.", ex);
+        }
     }
 
     /// <summary>

@@ -5,6 +5,7 @@ using ShopApp.Application.Services;
 using ShopApp.Core.Entities;
 using ShopApp.Core.Enums;
 using ShopApp.Core.Interfaces.Repositories;
+using ShopApp.Core.Interfaces.Services;
 
 namespace ShopApp.UnitTests.Services;
 
@@ -12,13 +13,15 @@ public class ItemServiceTests
 {
     private readonly IItemRepository _itemRepo;
     private readonly ICategoryRepository _categoryRepo;
+    private readonly IViewCountTracker _viewCountTracker;
     private readonly ItemService _sut;
 
     public ItemServiceTests()
     {
         _itemRepo = Substitute.For<IItemRepository>();
         _categoryRepo = Substitute.For<ICategoryRepository>();
-        _sut = new ItemService(_itemRepo, _categoryRepo);
+        _viewCountTracker = Substitute.For<IViewCountTracker>();
+        _sut = new ItemService(_itemRepo, _categoryRepo, _viewCountTracker);
     }
 
     [Fact]
@@ -34,17 +37,17 @@ public class ItemServiceTests
     }
 
     [Fact]
-    public async Task GetByIdAsync_WhenFound_IncrementsViewCount()
+    public async Task GetByIdAsync_WhenFound_TracksViewCount()
     {
         var item = CreateTestItem();
-        item.ViewCount = 5;
         _itemRepo.GetWithDetailsAsync(item.Id, Arg.Any<CancellationToken>()).Returns(item);
 
         var result = await _sut.GetByIdAsync(item.Id);
 
         result.IsSuccess.Should().BeTrue();
-        item.ViewCount.Should().Be(6);
-        await _itemRepo.Received(1).UpdateAsync(item, Arg.Any<CancellationToken>());
+        _viewCountTracker.Received(1).Track(item.Id);
+        // ViewCount is NOT incremented synchronously in memory anymore
+        await _itemRepo.DidNotReceive().UpdateAsync(item, Arg.Any<CancellationToken>());
     }
 
     [Fact]

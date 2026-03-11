@@ -52,6 +52,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, 
             b.Property(i => i.Description).HasMaxLength(5000).IsRequired();
             b.Property(i => i.Price).HasPrecision(18, 2);
             b.Property(i => i.Location).HasMaxLength(200);
+            b.Property(i => i.RowVersion).IsRowVersion(); // optimistic concurrency
             b.HasOne(i => i.Category)
              .WithMany(c => c.Items)
              .HasForeignKey(i => i.CategoryId)
