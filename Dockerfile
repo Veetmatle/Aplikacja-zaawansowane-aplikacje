@@ -21,8 +21,9 @@ WORKDIR /app
 # Copy published files first (as root)
 COPY --from=build /app/publish .
 
-# Create upload & logs directories, then create non-root user and set ownership
-RUN mkdir -p /app/wwwroot/uploads /app/logs \
+# Create upload & logs directories, install curl for healthcheck, then create non-root user
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /app/wwwroot/uploads /app/logs \
     && adduser --disabled-password --gecos '' appuser \
     && chown -R appuser:appuser /app
 

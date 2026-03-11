@@ -1,7 +1,7 @@
-# ShopApp — Backend API
+# ShopApp — Full-Stack Marketplace
 
-Kompletny backend aplikacji sprzedażowej (marketplace Allegro/OLX-style) zbudowany z ASP.NET Core 8, MSSQL, Docker.
-Projekt stosuje Clean Architecture (Onion), SOLID, FluentValidation, JWT z refresh tokenami, integrację płatności Przelewy24, rate limiting, soft delete, strukturalne logowanie (Serilog), health checks oraz pełne pokrycie testami.
+Kompletna aplikacja sprzedażowa (marketplace Allegro/OLX-style) — **backend** (ASP.NET Core 8, MSSQL) + **frontend** (React 18, TypeScript, Vite, Tailwind CSS) — uruchamiana przez Docker Compose.
+Projekt stosuje Clean Architecture (Onion), SOLID, FluentValidation, JWT z refresh tokenami, integrację płatności Przelewy24, rate limiting, soft delete, strukturalne logowanie (Serilog), health checks oraz pełne pokrycie testami (backend + frontend).
 
 ---
 
@@ -457,7 +457,145 @@ dotnet test
 - **NetArchTest** — Testy architektury
 - **Przelewy24 API** — Płatności (sandbox)
 - **Google Gemini** — Chatbot AI
-- **Docker + Docker Compose** — Konteneryzacja (następny krok)
+- **Docker + Docker Compose** — Konteneryzacja (backend + frontend + MSSQL)
+
+---
+
+## Frontend — React SPA
+
+### Stack technologiczny
+
+| Technologia | Rola |
+|------------|------|
+| React 18 + TypeScript (strict) | UI framework |
+| Vite | Bundler i dev server |
+| React Router v6 | Client-side routing z `createBrowserRouter` |
+| TanStack Query v5 | Fetching, caching, mutacje, invalidation |
+| Zustand | Globalny state (auth, koszyk UI) |
+| React Hook Form + Zod | Formularze z walidacją schematów |
+| Axios | HTTP client z interceptorami JWT |
+| Tailwind CSS v3 | Styling (ciepła paleta marketplace) |
+| Radix UI | Prymitywy dostępności (Select, Label) |
+| Lucide React | Ikony |
+| Vitest + jsdom | Testy jednostkowe |
+| class-variance-authority | Warianty komponentów UI |
+
+### Struktura frontendu
+
+```
+shopapp-frontend/
+├── public/
+├── src/
+│   ├── api/                    # Warstwa integracji z backendem
+│   │   ├── client.ts           # Axios instance + interceptory JWT (refresh queue)
+│   │   ├── auth.ts             # login, register, refresh, logout, changePassword
+│   │   ├── items.ts            # CRUD ogłoszeń + getMyItems
+│   │   ├── cart.ts             # addItem, updateItem, removeItem, clear
+│   │   ├── orders.ts           # create, getOrders, getOrder
+│   │   ├── categories.ts       # CRUD kategorii
+│   │   ├── payments.ts         # initiate, getStatus
+│   │   ├── chatbot.ts          # ask
+│   │   └── admin.ts            # getUsers, ban/unban, roles, deleteUser + usersApi (me)
+│   ├── components/
+│   │   ├── ui/                 # Komponenty bazowe (Button, Input, Card, Badge, Select, Skeleton, Label, Textarea)
+│   │   ├── Navbar.tsx          # Sticky navbar z search, cart badge, user menu, mobile hamburger
+│   │   ├── Footer.tsx          # Stopka
+│   │   ├── CartDrawer.tsx      # Wysuwany panel koszyka z prawej strony
+│   │   ├── Pagination.tsx      # Numeryczna paginacja z ellipsis
+│   │   ├── LoadingSpinner.tsx  # Spinner z Loader2 icon
+│   │   ├── ErrorBoundary.tsx   # Class component z friendly error page
+│   │   └── ProtectedRoute.tsx  # ProtectedRoute (auth) + AdminRoute (role check)
+│   ├── hooks/
+│   │   ├── useAuth.ts          # useLogin, useRegister, useLogout, useChangePassword
+│   │   ├── useCart.ts          # useCart, useAddToCart, useUpdateCartItem, useRemoveCartItem
+│   │   ├── useItems.ts         # useItems, useItem, useMyItems, useCreateItem, useUpdateItem, useDeleteItem
+│   │   ├── useOrders.ts        # useOrders, useOrder, useCreateOrder (z 409 conflict handling)
+│   │   ├── usePayments.ts      # useInitiatePayment (redirect), usePaymentStatus (polling 3s)
+│   │   ├── useCategories.ts    # useCategories (staleTime 10min)
+│   │   └── useDebounce.ts      # Generic debounce hook
+│   ├── pages/
+│   │   ├── HomePage.tsx        # Hero + search + kategorie + 8 najnowszych ogłoszeń
+│   │   ├── ItemsPage.tsx       # Sidebar filtrów + siatka + paginacja (URL params sync)
+│   │   ├── ItemDetailPage.tsx  # Zdjęcie + szczegóły + "Dodaj do koszyka"
+│   │   ├── ItemCreatePage.tsx  # Formularz nowego ogłoszenia (react-hook-form + zod)
+│   │   ├── ItemEditPage.tsx    # Edycja ogłoszenia z prefill
+│   │   ├── CartPage.tsx        # Lista pozycji + quantity stepper + podsumowanie
+│   │   ├── CheckoutPage.tsx    # Dane dostawy + podsumowanie zamówienia
+│   │   ├── OrdersPage.tsx      # Lista zamówień z kolorowymi badge'ami statusu
+│   │   ├── OrderDetailPage.tsx # Szczegóły + przycisk "Zapłać przez P24"
+│   │   ├── PaymentReturnPage.tsx # Strona powrotu z P24 (polling statusu)
+│   │   ├── LoginPage.tsx       # Centered card + walidacja Zod
+│   │   ├── RegisterPage.tsx    # 5 pól + hasło mismatch validation
+│   │   ├── ProfilePage.tsx     # Dane użytkownika + moje ogłoszenia (edit/delete)
+│   │   ├── NotFoundPage.tsx    # 404 z CTA
+│   │   └── admin/
+│   │       ├── AdminUsersPage.tsx      # Tabela użytkowników, ban/unban/delete
+│   │       └── AdminCategoriesPage.tsx # CRUD kategorii inline
+│   ├── stores/
+│   │   ├── authStore.ts        # Zustand persist: user, tokens, isAuthenticated, isAdmin()
+│   │   └── cartStore.ts        # Zustand: sessionId (guest cart), isOpen (drawer)
+│   ├── types/
+│   │   └── api.ts              # TypeScript interfaces 1:1 z DTO backendu + enums
+│   ├── lib/
+│   │   ├── utils.ts            # cn(), formatPrice(PLN), formatDate(pl-PL)
+│   │   └── queryClient.ts      # TanStack Query konfiguracja (5min stale, toast on error)
+│   ├── layouts/
+│   │   └── PageLayout.tsx      # Navbar + Outlet + Footer + CartDrawer
+│   ├── router.tsx              # createBrowserRouter z lazy loading (Suspense)
+│   ├── App.tsx                 # QueryClientProvider + RouterProvider + Toaster
+│   ├── main.tsx                # ReactDOM entry point
+│   └── test/
+│       ├── setup.ts            # @testing-library/jest-dom
+│       ├── utils.test.ts       # formatPrice, formatDate, cn (7 testów)
+│       └── authStore.test.ts   # authStore CRUD + isAdmin (6 testów)
+├── Dockerfile                  # Multi-stage: node:20-alpine build → nginx:alpine runtime
+├── nginx.conf                  # SPA routing, /api/ proxy, gzip, cache immutable
+├── vite.config.ts              # React plugin, /api dev proxy
+├── vitest.config.ts            # jsdom environment, globals
+├── tailwind.config.ts          # Sora display font, marketplace color palette
+├── tsconfig.json               # Strict mode, @/ path alias
+└── package.json                # Scripts: dev, build, preview, lint, test
+```
+
+### Kluczowe decyzje frontendowe
+
+| Decyzja | Dlaczego |
+|---------|----------|
+| **Zustand zamiast Redux** | Minimalistyczny, brak boilerplate, wystarczający dla auth + cart UI state |
+| **TanStack Query zamiast useState** | Server state management z automatycznym cache, invalidation, retry |
+| **Zod + react-hook-form** | Type-safe walidacja schematów, zero re-renderów |
+| **Lazy loading stron** | Każda strona to osobny chunk (~1-5KB gzipped), initial bundle 122KB gzipped |
+| **Nginx proxy** | Brak CORS issues w produkcji, jeden origin dla frontend + API |
+| **Template literals replaced with string concat** | Kompatybilność z PowerShell/Python toolingiem podczas generacji |
+
+### Integracje frontend ↔ backend
+
+- **JWT Refresh Queue** — Axios interceptor obsługuje race condition gdy wiele requestów zwróci 401 jednocześnie; `isRefreshing` + `failedQueue` pattern
+- **Guest Cart** — `X-Session-Id` header generowany kliencko (UUID v4), wysyłany w interceptorze dla endpointów `/cart/*` gdy user niezalogowany
+- **409 Conflict Handling** — `useCreateOrder` łapie 409, invaliduje `['cart']` i `['items']`, wyświetla toast "Produkt się wyprzedał"
+- **Payment Redirect** — `useInitiatePayment` → `window.location.href = redirectUrl` (pełny redirect do P24, nie iframe)
+- **Payment Polling** — `usePaymentStatus` z `refetchInterval: 3000ms` na stronie powrotu z P24
+
+### Uruchomienie
+
+```bash
+# Development (bez Dockera)
+cd shopapp-frontend
+npm install
+npm run dev          # http://localhost:5173 z proxy /api → localhost:8080
+
+# Testy
+npm test             # 13 testów (utils + authStore)
+
+# Build produkcyjny
+npm run build        # tsc --noEmit && vite build → dist/
+
+# Docker (cały stack)
+docker compose up --build -d
+# Frontend: http://localhost:3000
+# API:      http://localhost:8080
+# MSSQL:    localhost:1433
+```
 
 ---
 
