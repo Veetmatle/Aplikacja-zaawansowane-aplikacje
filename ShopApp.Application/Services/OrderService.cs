@@ -2,6 +2,7 @@ using ShopApp.Application.Common;
 using ShopApp.Application.DTOs.Order;
 using ShopApp.Application.Interfaces;
 using ShopApp.Core.Entities;
+using ShopApp.Core.Enums;
 using ShopApp.Core.Interfaces.Repositories;
 
 namespace ShopApp.Application.Services;
@@ -86,16 +87,34 @@ public class OrderService : IOrderService
     {
         var order = await _orderRepository.GetWithDetailsAsync(orderId, ct);
         if (order is null) return Result<OrderDto>.NotFound();
+
+        // Validate status transitions
+        var allowed = GetAllowedTransitions(order.Status);
+        if (!allowed.Contains(dto.Status))
+            return Result<OrderDto>.Failure($"Cannot transition from {order.Status} to {dto.Status}.");
+
         order.Status = dto.Status;
+        order.UpdatedAt = DateTime.UtcNow;
         await _orderRepository.UpdateAsync(order, ct);
         return Result<OrderDto>.Success(MapToDto(order));
     }
+
+    private static HashSet<OrderStatus> GetAllowedTransitions(OrderStatus current) => current switch
+    {
+        OrderStatus.Pending => new() { OrderStatus.Confirmed, OrderStatus.Cancelled },
+        OrderStatus.Confirmed => new() { OrderStatus.Shipped, OrderStatus.Cancelled },
+        OrderStatus.Shipped => new() { OrderStatus.Delivered },
+        OrderStatus.Delivered => new() { OrderStatus.Refunded },
+        OrderStatus.Cancelled => new(),
+        OrderStatus.Refunded => new(),
+        _ => new()
+    };
 
     private static string GenerateOrderNumber() =>
         $"ORD-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid().ToString("N")[..8].ToUpper()}";
 
     private static OrderDto MapToDto(Order order) => new(
-        order.Id, order.OrderNumber, order.Status, order.TotalAmount, order.Notes,
+        order.Id, order.OrderNumber, order.Status, order.PaymentStatus, order.TotalAmount, order.Notes,
         order.ShippingFirstName, order.ShippingLastName, order.ShippingAddress,
         order.ShippingCity, order.ShippingPostalCode, order.ShippingCountry, order.CreatedAt,
         order.Items.Select(i => new OrderItemDto(i.Id, i.ItemId, i.ItemTitleSnapshot, i.Quantity, i.UnitPrice, i.UnitPrice * i.Quantity)));

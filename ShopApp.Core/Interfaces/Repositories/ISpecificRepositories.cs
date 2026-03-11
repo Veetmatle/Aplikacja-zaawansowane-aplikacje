@@ -35,3 +35,17 @@ public interface ICategoryRepository : IRepository<Category>
     Task<IEnumerable<Category>> GetActiveAsync(CancellationToken ct = default);
     Task<Category?> GetBySlugAsync(string slug, CancellationToken ct = default);
 }
+
+public interface IRefreshTokenRepository : IRepository<RefreshToken>
+{
+    Task<RefreshToken?> GetByTokenHashAsync(string tokenHash, CancellationToken ct = default);
+    Task<IEnumerable<RefreshToken>> GetActiveByUserIdAsync(Guid userId, CancellationToken ct = default);
+    Task RevokeAllByUserIdAsync(Guid userId, string reason, CancellationToken ct = default);
+}
+
+public interface IPaymentRepository : IRepository<Payment>
+{
+    Task<Payment?> GetByOrderIdAsync(Guid orderId, CancellationToken ct = default);
+    Task<Payment?> GetBySessionIdAsync(string sessionId, CancellationToken ct = default);
+}
+

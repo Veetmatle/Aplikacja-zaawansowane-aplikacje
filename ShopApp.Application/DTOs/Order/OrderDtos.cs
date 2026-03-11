@@ -6,6 +6,7 @@ public record OrderDto(
     Guid Id,
     string OrderNumber,
     OrderStatus Status,
+    PaymentStatus PaymentStatus,
     decimal TotalAmount,
     string? Notes,
     string ShippingFirstName,

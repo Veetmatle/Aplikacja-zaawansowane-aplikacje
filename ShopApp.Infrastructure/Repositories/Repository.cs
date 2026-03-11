@@ -1,5 +1,6 @@
 using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
+using ShopApp.Core.Common;
 using ShopApp.Core.Interfaces.Repositories;
 using ShopApp.Infrastructure.Data;
 
@@ -38,9 +39,22 @@ public class Repository<T> : IRepository<T> where T : class
         await _context.SaveChangesAsync(ct);
     }
 
+    /// <summary>
+    /// Soft-delete for BaseEntity-derived entities (sets DeletedAt).
+    /// Hard-delete for other types.
+    /// </summary>
     public async Task DeleteAsync(T entity, CancellationToken ct = default)
     {
-        _dbSet.Remove(entity);
+        if (entity is BaseEntity baseEntity)
+        {
+            baseEntity.DeletedAt = DateTime.UtcNow;
+            _dbSet.Update(entity);
+        }
+        else
+        {
+            _dbSet.Remove(entity);
+        }
+
         await _context.SaveChangesAsync(ct);
     }
 

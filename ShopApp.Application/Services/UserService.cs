@@ -9,6 +9,7 @@ namespace ShopApp.Application.Services;
 
 /// <summary>
 /// User self-service: view and update own profile.
+/// Note: UserManager API does not accept CancellationToken (ASP.NET Core Identity limitation).
 /// </summary>
 public class UserService : IUserService
 {

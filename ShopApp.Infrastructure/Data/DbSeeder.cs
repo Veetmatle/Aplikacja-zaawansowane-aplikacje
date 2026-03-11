@@ -13,8 +13,10 @@ public static class DbSeeder
         UserManager<ApplicationUser> userManager,
         RoleManager<ApplicationRole> roleManager)
     {
-        // Apply pending migrations
-        await context.Database.MigrateAsync();
+        // NOTE: Migrations are applied separately via:
+        //   dotnet run --migrate
+        //   or: dotnet ef database update
+        // Do NOT call context.Database.MigrateAsync() here — race condition risk with multiple instances.
 
         // Seed roles
         foreach (var role in Roles)

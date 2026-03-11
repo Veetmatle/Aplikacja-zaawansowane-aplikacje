@@ -9,7 +9,15 @@ namespace ShopApp.Application.Services;
 /// <summary>
 /// Cart works for both guests (session-based) and authenticated users.
 /// On login, guest cart is merged into user cart via MergeGuestCartAsync.
-/// TODO: Add cart expiry cleanup (background job).
+/// 
+/// <para><b>Session storage limitations:</b></para>
+/// <list type="bullet">
+///   <item>Guest carts are identified by X-Session-Id and stored in MSSQL via EF Core.</item>
+///   <item>No TTL/cleanup mechanism — abandoned guest carts accumulate. Implement a background
+///         job (IHostedService) to purge carts where ExpiresAt &lt; UtcNow.</item>
+///   <item>At scale, SQL-backed guest carts become a bottleneck. Migrate to Redis
+///         before production (consistent with README recommendation).</item>
+/// </list>
 /// </summary>
 public class CartService : ICartService
 {
@@ -61,7 +69,7 @@ public class CartService : ICartService
         return Result<CartDto>.Success(MapToDto(cart));
     }
 
-    public async Task<r> RemoveItemAsync(Guid? userId, string? sessionId, Guid cartItemId, CancellationToken ct = default)
+    public async Task<Result> RemoveItemAsync(Guid? userId, string? sessionId, Guid cartItemId, CancellationToken ct = default)
     {
         var cart = await GetOrCreateCartAsync(userId, sessionId, ct);
         var item = cart.Items.FirstOrDefault(ci => ci.Id == cartItemId);
@@ -71,7 +79,7 @@ public class CartService : ICartService
         return Result.Success();
     }
 
-    public async Task<r> ClearCartAsync(Guid? userId, string? sessionId, CancellationToken ct = default)
+    public async Task<Result> ClearCartAsync(Guid? userId, string? sessionId, CancellationToken ct = default)
     {
         var cart = await GetOrCreateCartAsync(userId, sessionId, ct);
         cart.Items.Clear();
@@ -79,7 +87,7 @@ public class CartService : ICartService
         return Result.Success();
     }
 
-    public async Task<r> MergeGuestCartAsync(Guid userId, string sessionId, CancellationToken ct = default)
+    public async Task<Result> MergeGuestCartAsync(Guid userId, string sessionId, CancellationToken ct = default)
     {
         var guestCart = await _cartRepository.GetBySessionIdAsync(sessionId, ct);
         if (guestCart is null) return Result.Success();

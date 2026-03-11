@@ -92,7 +92,7 @@ public class ItemService : IItemService
         return Result<ItemDto>.Success(MapToDto(item));
     }
 
-    public async Task<r> DeleteAsync(Guid itemId, Guid requestingUserId, CancellationToken ct = default)
+    public async Task<Result> DeleteAsync(Guid itemId, Guid requestingUserId, CancellationToken ct = default)
     {
         var item = await _itemRepository.GetByIdAsync(itemId, ct);
         if (item is null) return Result.NotFound();

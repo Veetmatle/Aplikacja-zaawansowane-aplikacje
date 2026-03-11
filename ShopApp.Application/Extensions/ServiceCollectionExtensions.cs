@@ -24,6 +24,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IOrderService, OrderService>();
         services.AddScoped<ICategoryService, CategoryService>();
         services.AddScoped<IChatbotService, ChatbotService>();
+        services.AddScoped<IPaymentService, PaymentService>();
 
         return services;
     }

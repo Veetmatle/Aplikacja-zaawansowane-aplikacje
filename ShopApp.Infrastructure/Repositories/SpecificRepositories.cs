@@ -119,3 +119,47 @@ public class CategoryRepository : Repository<Category>, ICategoryRepository
             .Include(c => c.ParentCategory)
             .FirstOrDefaultAsync(c => c.Slug == slug, ct);
 }
+
+public class RefreshTokenRepository : Repository<RefreshToken>, IRefreshTokenRepository
+{
+    public RefreshTokenRepository(AppDbContext context) : base(context) { }
+
+    public async Task<RefreshToken?> GetByTokenHashAsync(string tokenHash, CancellationToken ct = default)
+        => await _dbSet.FirstOrDefaultAsync(rt => rt.TokenHash == tokenHash, ct);
+
+    public async Task<IEnumerable<RefreshToken>> GetActiveByUserIdAsync(Guid userId, CancellationToken ct = default)
+        => await _dbSet
+            .Where(rt => rt.UserId == userId && rt.RevokedAt == null && rt.ExpiresAt > DateTime.UtcNow)
+            .ToListAsync(ct);
+
+    public async Task RevokeAllByUserIdAsync(Guid userId, string reason, CancellationToken ct = default)
+    {
+        var activeTokens = await _dbSet
+            .Where(rt => rt.UserId == userId && rt.RevokedAt == null)
+            .ToListAsync(ct);
+
+        foreach (var token in activeTokens)
+        {
+            token.RevokedAt = DateTime.UtcNow;
+            token.RevokeReason = reason;
+        }
+
+        await _context.SaveChangesAsync(ct);
+    }
+}
+
+public class PaymentRepository : Repository<Payment>, IPaymentRepository
+{
+    public PaymentRepository(AppDbContext context) : base(context) { }
+
+    public async Task<Payment?> GetByOrderIdAsync(Guid orderId, CancellationToken ct = default)
+        => await _dbSet
+            .Include(p => p.Order)
+            .FirstOrDefaultAsync(p => p.OrderId == orderId, ct);
+
+    public async Task<Payment?> GetBySessionIdAsync(string sessionId, CancellationToken ct = default)
+        => await _dbSet
+            .Include(p => p.Order)
+            .FirstOrDefaultAsync(p => p.SessionId == sessionId, ct);
+}
+

@@ -3,6 +3,7 @@ using ShopApp.Application.DTOs.Auth;
 using ShopApp.Application.DTOs.Cart;
 using ShopApp.Application.DTOs.Item;
 using ShopApp.Application.DTOs.Order;
+using ShopApp.Application.DTOs.Payment;
 using ShopApp.Application.DTOs.User;
 
 namespace ShopApp.Application.Interfaces;
@@ -77,3 +78,11 @@ public interface IChatbotService
 {
     Task<Result<string>> AskAsync(string question, string? context = null, CancellationToken ct = default);
 }
+
+public interface IPaymentService
+{
+    Task<Result<PaymentStatusDto>> InitiatePaymentAsync(Guid orderId, Guid userId, CancellationToken ct = default);
+    Task<Result> HandleNotificationAsync(P24NotificationDto notification, CancellationToken ct = default);
+    Task<Result<PaymentStatusDto>> GetPaymentStatusAsync(Guid orderId, Guid userId, CancellationToken ct = default);
+}
+

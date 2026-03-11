@@ -7,6 +7,7 @@ public class Order : BaseEntity
 {
     public string OrderNumber { get; set; } = string.Empty;
     public OrderStatus Status { get; set; } = OrderStatus.Pending;
+    public PaymentStatus PaymentStatus { get; set; } = PaymentStatus.Pending;
     public decimal TotalAmount { get; set; }
     public string? Notes { get; set; }
 
@@ -21,6 +22,7 @@ public class Order : BaseEntity
     public Guid BuyerId { get; set; }
     public ApplicationUser Buyer { get; set; } = null!;
     public ICollection<OrderItem> Items { get; set; } = new List<OrderItem>();
+    public Payment? Payment { get; set; }
 }
 
 public class OrderItem : BaseEntity

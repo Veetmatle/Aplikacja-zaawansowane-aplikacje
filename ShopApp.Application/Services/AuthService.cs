@@ -5,30 +5,39 @@ using ShopApp.Application.Common;
 using ShopApp.Application.DTOs.Auth;
 using ShopApp.Application.Interfaces;
 using ShopApp.Core.Entities;
+using ShopApp.Core.Interfaces.Repositories;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace ShopApp.Application.Services;
 
 /// <summary>
-/// Handles user registration, login, JWT issuance, and token refresh.
-/// TODO: Implement refresh token storage (e.g. store in DB or Redis).
+/// Handles user registration, login, JWT issuance, refresh token rotation, and logout.
+/// Refresh tokens are stored as SHA-256 hashes in the database.
+/// 
+/// Note: UserManager/SignInManager APIs do not accept CancellationToken —
+/// this is an ASP.NET Core Identity limitation. CancellationToken is propagated
+/// to all IRefreshTokenRepository calls which use EF Core directly.
 /// </summary>
 public class AuthService : IAuthService
 {
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly SignInManager<ApplicationUser> _signInManager;
     private readonly IConfiguration _configuration;
+    private readonly IRefreshTokenRepository _refreshTokenRepository;
 
     public AuthService(
         UserManager<ApplicationUser> userManager,
         SignInManager<ApplicationUser> signInManager,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IRefreshTokenRepository refreshTokenRepository)
     {
         _userManager = userManager;
         _signInManager = signInManager;
         _configuration = configuration;
+        _refreshTokenRepository = refreshTokenRepository;
     }
 
     public async Task<Result<AuthResponseDto>> RegisterAsync(RegisterDto dto, CancellationToken ct = default)
@@ -54,7 +63,7 @@ public class AuthService : IAuthService
 
         await _userManager.AddToRoleAsync(user, "User");
 
-        return await GenerateAuthResponseAsync(user);
+        return await GenerateAuthResponseAsync(user, ct);
     }
 
     public async Task<Result<AuthResponseDto>> LoginAsync(LoginDto dto, CancellationToken ct = default)
@@ -74,13 +83,51 @@ public class AuthService : IAuthService
         if (user.Status == Core.Enums.UserStatus.TimedOut && user.TimeoutUntil > DateTime.UtcNow)
             return Result<AuthResponseDto>.Forbidden($"Account timed out until {user.TimeoutUntil:u}");
 
-        return await GenerateAuthResponseAsync(user);
+        return await GenerateAuthResponseAsync(user, ct);
     }
 
-    public Task<Result<AuthResponseDto>> RefreshTokenAsync(RefreshTokenDto dto, CancellationToken ct = default)
+    public async Task<Result<AuthResponseDto>> RefreshTokenAsync(RefreshTokenDto dto, CancellationToken ct = default)
     {
-        // TODO: Implement refresh token validation from DB/cache
-        throw new NotImplementedException("Refresh token logic to be implemented.");
+        var tokenHash = HashToken(dto.RefreshToken);
+        var storedToken = await _refreshTokenRepository.GetByTokenHashAsync(tokenHash, ct);
+
+        if (storedToken is null)
+            return Result<AuthResponseDto>.Failure("Invalid refresh token.", 401);
+
+        if (storedToken.IsRevoked)
+        {
+            // Token reuse detected — revoke all tokens for this user (security)
+            await _refreshTokenRepository.RevokeAllByUserIdAsync(
+                storedToken.UserId, "Token reuse detected", ct);
+            return Result<AuthResponseDto>.Failure("Token has been revoked. All sessions terminated for security.", 401);
+        }
+
+        if (storedToken.IsExpired)
+            return Result<AuthResponseDto>.Failure("Refresh token has expired.", 401);
+
+        // Revoke current token (rotation)
+        storedToken.RevokedAt = DateTime.UtcNow;
+        storedToken.RevokeReason = "Rotated";
+        await _refreshTokenRepository.UpdateAsync(storedToken, ct);
+
+        var user = await _userManager.FindByIdAsync(storedToken.UserId.ToString());
+        if (user is null)
+            return Result<AuthResponseDto>.Failure("User not found.", 401);
+
+        if (user.Status == Core.Enums.UserStatus.Banned)
+            return Result<AuthResponseDto>.Forbidden($"Account banned: {user.BanReason}");
+
+        var response = await GenerateAuthResponseAsync(user, ct);
+
+        // Link old token to new one
+        if (response.IsSuccess)
+        {
+            var newTokenHash = HashToken(response.Value!.RefreshToken);
+            storedToken.ReplacedByTokenHash = newTokenHash;
+            await _refreshTokenRepository.UpdateAsync(storedToken, ct);
+        }
+
+        return response;
     }
 
     public async Task<Result> ChangePasswordAsync(Guid userId, ChangePasswordDto dto, CancellationToken ct = default)
@@ -92,20 +139,23 @@ public class AuthService : IAuthService
         if (!result.Succeeded)
             return Result.Failure(string.Join("; ", result.Errors.Select(e => e.Description)));
 
+        // Revoke all refresh tokens on password change
+        await _refreshTokenRepository.RevokeAllByUserIdAsync(userId, "Password changed", ct);
+
         return Result.Success();
     }
 
-    public Task<Result> LogoutAsync(Guid userId, CancellationToken ct = default)
+    public async Task<Result> LogoutAsync(Guid userId, CancellationToken ct = default)
     {
-        // TODO: Invalidate refresh token in DB/cache
-        return Task.FromResult(r.Success());
+        await _refreshTokenRepository.RevokeAllByUserIdAsync(userId, "User logged out", ct);
+        return Result.Success();
     }
 
     // -------------------------------------------------------------------------
     // Private helpers
     // -------------------------------------------------------------------------
 
-    private async Task<Result<AuthResponseDto>> GenerateAuthResponseAsync(ApplicationUser user)
+    private async Task<Result<AuthResponseDto>> GenerateAuthResponseAsync(ApplicationUser user, CancellationToken ct = default)
     {
         var roles = await _userManager.GetRolesAsync(user);
         var claims = new List<Claim>
@@ -130,14 +180,39 @@ public class AuthService : IAuthService
             signingCredentials: new SigningCredentials(key, SecurityAlgorithms.HmacSha256));
 
         var tokenString = new JwtSecurityTokenHandler().WriteToken(token);
-        var refreshToken = Guid.NewGuid().ToString("N"); // TODO: Store in DB
+
+        // Generate refresh token and persist hash in DB
+        var refreshTokenPlain = GenerateRefreshToken();
+        var refreshTokenHash = HashToken(refreshTokenPlain);
+
+        var refreshTokenEntity = new RefreshToken
+        {
+            TokenHash = refreshTokenHash,
+            UserId = user.Id,
+            ExpiresAt = DateTime.UtcNow.AddDays(30),
+        };
+        await _refreshTokenRepository.AddAsync(refreshTokenEntity, ct);
 
         var response = new AuthResponseDto(
             AccessToken: tokenString,
-            RefreshToken: refreshToken,
+            RefreshToken: refreshTokenPlain,
             ExpiresAt: expires,
             User: new UserInfoDto(user.Id, user.FirstName, user.LastName, user.Email!, user.AvatarUrl, roles));
 
         return Result<AuthResponseDto>.Success(response);
+    }
+
+    private static string GenerateRefreshToken()
+    {
+        var randomBytes = new byte[64];
+        using var rng = RandomNumberGenerator.Create();
+        rng.GetBytes(randomBytes);
+        return Convert.ToBase64String(randomBytes);
+    }
+
+    private static string HashToken(string token)
+    {
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(token));
+        return Convert.ToHexString(bytes).ToLowerInvariant();
     }
 }

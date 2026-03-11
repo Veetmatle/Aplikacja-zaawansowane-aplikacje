@@ -10,6 +10,9 @@ namespace ShopApp.Application.Services;
 
 /// <summary>
 /// Admin operations: ban, timeout, role management, user deletion.
+/// Note: UserManager API does not accept CancellationToken — this is an
+/// ASP.NET Core Identity limitation, not a project oversight.
+/// CancellationToken is propagated to direct EF Core calls (CountAsync, ToListAsync).
 /// </summary>
 public class AdminUserService : IAdminUserService
 {
@@ -127,10 +130,19 @@ public class AdminUserService : IAdminUserService
 
     public async Task<Result> DeleteUserAsync(Guid userId, CancellationToken ct = default)
     {
+        // UserManager.FindByIdAsync does not accept CancellationToken (Identity limitation)
         var user = await _userManager.FindByIdAsync(userId.ToString());
         if (user is null) return Result.NotFound();
 
-        var result = await _userManager.DeleteAsync(user);
+        // Soft delete — set DeletedAt instead of physically removing the row.
+        // GlobalQueryFilter on ApplicationUser ensures soft-deleted users are excluded from queries.
+        // UserManager.UpdateAsync persists changes through Identity's UserStore.
+        user.DeletedAt = DateTime.UtcNow;
+        user.Status = UserStatus.Banned;
+        user.BanReason = "Account deleted by admin.";
+        user.UpdatedAt = DateTime.UtcNow;
+
+        var result = await _userManager.UpdateAsync(user);
         return result.Succeeded ? Result.Success() : Result.Failure(string.Join("; ", result.Errors.Select(e => e.Description)));
     }
 

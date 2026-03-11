@@ -5,6 +5,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using ShopApp.Core.Entities;
+using ShopApp.Core.Interfaces;
 using ShopApp.Core.Interfaces.Repositories;
 using ShopApp.Core.Interfaces.Services;
 using ShopApp.Infrastructure.Data;
@@ -66,15 +67,26 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ICartRepository, CartRepository>();
         services.AddScoped<IOrderRepository, OrderRepository>();
         services.AddScoped<ICategoryRepository, CategoryRepository>();
+        services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
+        services.AddScoped<IPaymentRepository, PaymentRepository>();
+        services.AddScoped<IUnitOfWork, UnitOfWork>();
 
         // ── Infrastructure services ───────────────────────────────────────────
         services.AddHttpContextAccessor();
         services.AddScoped<ICurrentUserService, CurrentUserService>();
         services.AddScoped<IFileStorageService, LocalFileStorageService>();
         services.AddSingleton<IDateTimeService, DateTimeService>();
+        services.AddScoped<IPaymentGateway, Przelewy24Service>();
 
-        // ── HTTP client for Gemini ────────────────────────────────────────────
+        // ── HTTP clients ──────────────────────────────────────────────────────
         services.AddHttpClient("Gemini");
+        services.AddHttpClient("Przelewy24", client =>
+        {
+            var sandbox = configuration.GetValue("Przelewy24:Sandbox", true);
+            client.BaseAddress = new Uri(sandbox
+                ? "https://sandbox.przelewy24.pl/"
+                : "https://secure.przelewy24.pl/");
+        });
 
         return services;
     }

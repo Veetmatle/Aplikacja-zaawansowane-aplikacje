@@ -15,6 +15,8 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, 
     public DbSet<CartItem> CartItems => Set<CartItem>();
     public DbSet<Order> Orders => Set<Order>();
     public DbSet<OrderItem> OrderItems => Set<OrderItem>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<Payment> Payments => Set<Payment>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -130,6 +132,47 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, 
              .OnDelete(DeleteBehavior.Restrict);
         });
 
+        // ── RefreshToken ─────────────────────────────────────────────────
+        builder.Entity<RefreshToken>(b =>
+        {
+            b.HasKey(rt => rt.Id);
+            b.Property(rt => rt.TokenHash).HasMaxLength(128).IsRequired();
+            b.HasIndex(rt => rt.TokenHash).IsUnique();
+            b.Property(rt => rt.ReplacedByTokenHash).HasMaxLength(128);
+            b.Property(rt => rt.RevokeReason).HasMaxLength(256);
+            b.HasOne(rt => rt.User)
+             .WithMany(u => u.RefreshTokens)
+             .HasForeignKey(rt => rt.UserId)
+             .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ── Payment ─────────────────────────────────────────────────────────
+        builder.Entity<Payment>(b =>
+        {
+            b.HasKey(p => p.Id);
+            b.Property(p => p.SessionId).HasMaxLength(100).IsRequired();
+            b.HasIndex(p => p.SessionId).IsUnique();
+            b.Property(p => p.TransactionId).HasMaxLength(100);
+            b.Property(p => p.Amount).HasPrecision(18, 2);
+            b.Property(p => p.Currency).HasMaxLength(3);
+            b.Property(p => p.Provider).HasMaxLength(50);
+            b.Property(p => p.RedirectUrl).HasMaxLength(1000);
+            b.Property(p => p.FailureReason).HasMaxLength(500);
+            b.HasOne(p => p.Order)
+             .WithOne(o => o.Payment)
+             .HasForeignKey<Payment>(p => p.OrderId)
+             .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ── Global Query Filters — soft delete ──────────────────────────────
+        builder.Entity<ApplicationUser>().HasQueryFilter(u => u.DeletedAt == null);
+        builder.Entity<Item>().HasQueryFilter(e => e.DeletedAt == null);
+        builder.Entity<Category>().HasQueryFilter(e => e.DeletedAt == null);
+        builder.Entity<Order>().HasQueryFilter(e => e.DeletedAt == null);
+        builder.Entity<Cart>().HasQueryFilter(e => e.DeletedAt == null);
+        builder.Entity<Payment>().HasQueryFilter(e => e.DeletedAt == null);
+        builder.Entity<ItemPhoto>().HasQueryFilter(e => e.DeletedAt == null);
+
         // Rename Identity tables to cleaner names
         builder.Entity<ApplicationUser>().ToTable("Users");
         builder.Entity<ApplicationRole>().ToTable("Roles");
@@ -138,5 +181,27 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, 
         builder.Entity<Microsoft.AspNetCore.Identity.IdentityUserLogin<Guid>>().ToTable("UserLogins");
         builder.Entity<Microsoft.AspNetCore.Identity.IdentityRoleClaim<Guid>>().ToTable("RoleClaims");
         builder.Entity<Microsoft.AspNetCore.Identity.IdentityUserToken<Guid>>().ToTable("UserTokens");
+    }
+
+    /// <summary>
+    /// Override SaveChanges to auto-set UpdatedAt on modified entities.
+    /// Handles both BaseEntity-derived types and ApplicationUser (which inherits IdentityUser, not BaseEntity).
+    /// </summary>
+    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        foreach (var entry in ChangeTracker.Entries<ShopApp.Core.Common.BaseEntity>())
+        {
+            if (entry.State == EntityState.Modified)
+                entry.Entity.UpdatedAt = DateTime.UtcNow;
+        }
+
+        // ApplicationUser doesn't inherit BaseEntity — handle separately
+        foreach (var entry in ChangeTracker.Entries<ApplicationUser>())
+        {
+            if (entry.State == EntityState.Modified)
+                entry.Entity.UpdatedAt = DateTime.UtcNow;
+        }
+
+        return await base.SaveChangesAsync(cancellationToken);
     }
 }

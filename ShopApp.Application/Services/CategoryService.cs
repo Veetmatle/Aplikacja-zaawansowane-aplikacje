@@ -58,7 +58,7 @@ public class CategoryService : ICategoryService
         return Result<CategoryDto>.Success(MapToDto(cat));
     }
 
-    public async Task<r> DeleteAsync(Guid id, CancellationToken ct = default)
+    public async Task<Result> DeleteAsync(Guid id, CancellationToken ct = default)
     {
         var cat = await _categoryRepository.GetByIdAsync(id, ct);
         if (cat is null) return Result.NotFound();

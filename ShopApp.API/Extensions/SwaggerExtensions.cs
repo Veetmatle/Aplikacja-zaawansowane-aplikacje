@@ -1,3 +1,4 @@
+using System.Reflection;
 using Microsoft.OpenApi.Models;
 
 namespace ShopApp.API.Extensions;
@@ -12,7 +13,7 @@ public static class SwaggerExtensions
             {
                 Title = "ShopApp API",
                 Version = "v1",
-                Description = "Online marketplace API"
+                Description = "Online marketplace API — Clean Architecture, .NET 8, Przelewy24 payments"
             });
 
             c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
@@ -34,6 +35,12 @@ public static class SwaggerExtensions
                     Array.Empty<string>()
                 }
             });
+
+            // Include XML comments from API project
+            var xmlFilename = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
+            var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFilename);
+            if (File.Exists(xmlPath))
+                c.IncludeXmlComments(xmlPath);
         });
 
         return services;

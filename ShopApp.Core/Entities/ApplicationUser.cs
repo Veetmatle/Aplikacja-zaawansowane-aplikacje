@@ -14,8 +14,17 @@ public class ApplicationUser : IdentityUser<Guid>
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
 
+    /// <summary>
+    /// Soft-delete marker. Cannot inherit BaseEntity (IdentityUser constraint),
+    /// so DeletedAt is declared directly. GlobalQueryFilter in AppDbContext
+    /// automatically excludes soft-deleted users from queries.
+    /// </summary>
+    public DateTime? DeletedAt { get; set; }
+    public bool IsDeleted => DeletedAt is not null;
+
     // Navigation properties
     public ICollection<Item> Items { get; set; } = new List<Item>();
     public ICollection<Order> Orders { get; set; } = new List<Order>();
+    public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
     public Cart? Cart { get; set; }
 }
