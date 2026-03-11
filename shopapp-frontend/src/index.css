@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@400;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,27 +6,41 @@
 
 @layer base {
   :root {
-    --background: 220 25% 6%;
-    --foreground: 210 20% 93%;
-    --card: 220 22% 10%;
-    --card-foreground: 210 20% 93%;
-    --popover: 220 22% 10%;
-    --popover-foreground: 210 20% 93%;
-    --primary: 213 94% 58%;
+    /* === JASNE TŁO — Allegro-style === */
+    --background: 0 0% 96%;           /* #F5F5F5 — jasny szary */
+    --foreground: 222 47% 11%;        /* #0F172A — prawie czarny */
+
+    --card: 0 0% 100%;                /* #FFFFFF — białe karty */
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    /* Granatowy primary — jak navbar Allegro */
+    --primary: 231 64% 36%;           /* #1A2B8F → głęboki granat/indygo */
     --primary-foreground: 0 0% 100%;
-    --secondary: 220 18% 15%;
-    --secondary-foreground: 210 20% 93%;
-    --muted: 220 15% 18%;
-    --muted-foreground: 215 15% 55%;
-    --accent: 38 92% 50%;
-    --accent-foreground: 220 25% 6%;
+
+    --secondary: 0 0% 93%;            /* #EDEDED — jasnoszary dla hover/muted bg */
+    --secondary-foreground: 222 47% 11%;
+
+    --muted: 0 0% 90%;
+    --muted-foreground: 215 16% 47%;  /* szary tekst pomocniczy */
+
+    /* Pomarańczowy/bursztyn TYLKO dla CTA i cen — oszczędnie */
+    --accent: 25 95% 53%;             /* #F97316 — pomarańczowy */
+    --accent-foreground: 0 0% 100%;
+
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
-    --border: 220 18% 18%;
-    --input: 220 18% 14%;
-    --ring: 213 94% 58%;
-    --radius: 0.75rem;
-    --navbar: 210 30% 8%;
+
+    --border: 0 0% 87%;               /* #DEDEDE — subtelne obramowania */
+    --input: 0 0% 100%;
+    --ring: 231 64% 36%;
+
+    --radius: 0.5rem;
+
+    /* Kolor navbar — głęboki granat jak Allegro */
+    --navbar: 231 64% 20%;            /* #0F1A5C */
   }
 
   * {
@@ -49,5 +63,13 @@
   }
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
+  }
+
+  /* Navbar ma hardcoded granat, niezależnie od motywu */
+  .bg-navbar {
+    background-color: #1A1F71;
+  }
+  .bg-navbar-dark {
+    background-color: #13175A;
   }
 }
