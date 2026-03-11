@@ -65,6 +65,7 @@ public class CartServiceTests
         var result = await _sut.AddItemAsync(userId, null, dto);
 
         result.IsSuccess.Should().BeTrue();
+        await _cartRepo.Received(1).AddCartItemAsync(Arg.Any<CartItem>(), Arg.Any<CancellationToken>());
         cart.Items.Should().HaveCount(1);
         cart.Items.First().Quantity.Should().Be(2);
     }
@@ -88,7 +89,7 @@ public class CartServiceTests
 
         result.IsSuccess.Should().BeTrue();
         cart.Items.Should().BeEmpty();
-        await _cartRepo.Received(1).UpdateAsync(cart, Arg.Any<CancellationToken>());
+        await _cartRepo.Received(2).RemoveCartItemAsync(Arg.Any<CartItem>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]

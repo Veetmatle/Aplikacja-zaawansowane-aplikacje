@@ -46,11 +46,17 @@ public class CartService : ICartService
         var existing = cart.Items.FirstOrDefault(ci => ci.ItemId == dto.ItemId);
 
         if (existing is not null)
+        {
             existing.Quantity += dto.Quantity;
+            await _cartRepository.UpdateAsync(cart, ct);
+        }
         else
-            cart.Items.Add(new CartItem { CartId = cart.Id, ItemId = dto.ItemId, Quantity = dto.Quantity });
+        {
+            var cartItem = new CartItem { CartId = cart.Id, ItemId = dto.ItemId, Quantity = dto.Quantity };
+            await _cartRepository.AddCartItemAsync(cartItem, ct);
+            cart.Items.Add(cartItem); // keep in-memory model consistent for MapToDto
+        }
 
-        await _cartRepository.UpdateAsync(cart, ct);
         return Result<CartDto>.Success(MapToDto(cart));
     }
 
@@ -61,11 +67,16 @@ public class CartService : ICartService
         if (cartItem is null) return Result<CartDto>.NotFound("Cart item not found.");
 
         if (dto.Quantity <= 0)
+        {
+            await _cartRepository.RemoveCartItemAsync(cartItem, ct);
             cart.Items.Remove(cartItem);
+        }
         else
+        {
             cartItem.Quantity = dto.Quantity;
+            await _cartRepository.UpdateAsync(cart, ct);
+        }
 
-        await _cartRepository.UpdateAsync(cart, ct);
         return Result<CartDto>.Success(MapToDto(cart));
     }
 
@@ -74,16 +85,17 @@ public class CartService : ICartService
         var cart = await GetOrCreateCartAsync(userId, sessionId, ct);
         var item = cart.Items.FirstOrDefault(ci => ci.Id == cartItemId);
         if (item is null) return Result.NotFound();
+        await _cartRepository.RemoveCartItemAsync(item, ct);
         cart.Items.Remove(item);
-        await _cartRepository.UpdateAsync(cart, ct);
         return Result.Success();
     }
 
     public async Task<Result> ClearCartAsync(Guid? userId, string? sessionId, CancellationToken ct = default)
     {
         var cart = await GetOrCreateCartAsync(userId, sessionId, ct);
+        foreach (var item in cart.Items.ToList())
+            await _cartRepository.RemoveCartItemAsync(item, ct);
         cart.Items.Clear();
-        await _cartRepository.UpdateAsync(cart, ct);
         return Result.Success();
     }
 

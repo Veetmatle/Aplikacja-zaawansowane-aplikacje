@@ -21,7 +21,5 @@ public class Payment : BaseEntity
     /// Prevents double-processing when P24 retries callbacks.
     /// </summary>
     public DateTime? ProcessedAt { get; set; }
-
-    // Navigation
     public Order Order { get; set; } = null!;
 }

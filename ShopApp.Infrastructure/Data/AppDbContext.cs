@@ -95,7 +95,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, 
             b.HasOne(ci => ci.Item)
              .WithMany(i => i.CartItems)
              .HasForeignKey(ci => ci.ItemId)
-             .OnDelete(DeleteBehavior.Cascade);
+             .OnDelete(DeleteBehavior.Restrict);
         });
 
         // ── Order ────────────────────────────────────────────────────────────
@@ -165,6 +165,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, 
         });
 
         // ── Global Query Filters — soft delete ──────────────────────────────
+        // Parent entities
         builder.Entity<ApplicationUser>().HasQueryFilter(u => u.DeletedAt == null);
         builder.Entity<Item>().HasQueryFilter(e => e.DeletedAt == null);
         builder.Entity<Category>().HasQueryFilter(e => e.DeletedAt == null);
@@ -172,6 +173,11 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, 
         builder.Entity<Cart>().HasQueryFilter(e => e.DeletedAt == null);
         builder.Entity<Payment>().HasQueryFilter(e => e.DeletedAt == null);
         builder.Entity<ItemPhoto>().HasQueryFilter(e => e.DeletedAt == null);
+        // Dependent entities — matching filters to avoid EF Core warnings
+        // about required navigations with filtered parent entities
+        builder.Entity<CartItem>().HasQueryFilter(e => e.DeletedAt == null);
+        builder.Entity<OrderItem>().HasQueryFilter(e => e.DeletedAt == null);
+        builder.Entity<RefreshToken>().HasQueryFilter(e => e.DeletedAt == null);
 
         // Rename Identity tables to cleaner names
         builder.Entity<ApplicationUser>().ToTable("Users");

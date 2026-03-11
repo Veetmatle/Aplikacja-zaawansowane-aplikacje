@@ -12,8 +12,6 @@ public class Category : BaseEntity
 
     public Guid? ParentCategoryId { get; set; }
     public Category? ParentCategory { get; set; }
-
-    // Navigation properties
     public ICollection<Category> SubCategories { get; set; } = new List<Category>();
     public ICollection<Item> Items { get; set; } = new List<Item>();
 }

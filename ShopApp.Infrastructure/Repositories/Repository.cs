@@ -35,7 +35,20 @@ public class Repository<T> : IRepository<T> where T : class
 
     public async Task UpdateAsync(T entity, CancellationToken ct = default)
     {
-        _dbSet.Update(entity);
+        var entry = _context.Entry(entity);
+        
+        if (entry.State == EntityState.Detached)
+        {
+            // Detached entity — attach and mark as Modified
+            _dbSet.Update(entity);
+        }
+        else
+        {
+            // Already tracked — detect new children added to navigation properties.
+            // Run DetectChanges so EF picks up new entities added to tracked collections.
+            _context.ChangeTracker.DetectChanges();
+        }
+
         await _context.SaveChangesAsync(ct);
     }
 

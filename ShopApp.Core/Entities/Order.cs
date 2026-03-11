@@ -10,8 +10,6 @@ public class Order : BaseEntity
     public PaymentStatus PaymentStatus { get; set; } = PaymentStatus.Pending;
     public decimal TotalAmount { get; set; }
     public string? Notes { get; set; }
-
-    // Shipping address snapshot
     public string ShippingFirstName { get; set; } = string.Empty;
     public string ShippingLastName { get; set; } = string.Empty;
     public string ShippingAddress { get; set; } = string.Empty;

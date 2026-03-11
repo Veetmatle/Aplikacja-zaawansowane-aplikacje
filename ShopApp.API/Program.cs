@@ -120,14 +120,15 @@ try
         };
     });
 
-    if (app.Environment.IsDevelopment())
-    {
-        app.UseSwagger();
-        app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "ShopApp API v1"));
-    }
+    // ── Swagger (enabled in all environments for this demo/test app) ──────
+    app.UseSwagger();
+    app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "ShopApp API v1"));
 
     app.UseCors("AllowAll");
-    app.UseHttpsRedirection();
+
+    if (app.Environment.IsDevelopment())
+        app.UseHttpsRedirection();
+
     app.UseStaticFiles();
 
     app.UseRateLimiter();

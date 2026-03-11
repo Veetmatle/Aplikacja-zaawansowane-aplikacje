@@ -1,5 +1,3 @@
-version: '3.9'
-
 services:
   # ── MSSQL ──────────────────────────────────────────────────────────────────
   mssql:
@@ -9,17 +7,37 @@ services:
     environment:
       SA_PASSWORD: ${MSSQL_SA_PASSWORD}
       ACCEPT_EULA: "Y"
-      MSSQL_PID: "Express"     # Free tier; change to Developer/Standard as needed
+      MSSQL_PID: "Express"
     ports:
       - "1433:1433"
     volumes:
       - mssql_data:/var/opt/mssql
     healthcheck:
-      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P '${MSSQL_SA_PASSWORD}' -Q 'SELECT 1' -No || exit 1"]
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P '${MSSQL_SA_PASSWORD}' -Q 'SELECT 1' -C || exit 1"]
       interval: 15s
       timeout: 10s
       retries: 10
       start_period: 30s
+    networks:
+      - shopapp_net
+
+  # ── Migrations (run-once init container) ────────────────────────────────────
+  migrations:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: shopapp_migrations
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__DefaultConnection: "Server=mssql;Database=ShopApp;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True;"
+      Jwt__Key: ${JWT_SECRET_KEY}
+      Jwt__Issuer: ShopApp
+      Jwt__Audience: ShopAppUsers
+    entrypoint: ["dotnet", "ShopApp.API.dll", "--migrate"]
+    depends_on:
+      mssql:
+        condition: service_healthy
+    restart: "no"
     networks:
       - shopapp_net
 
@@ -39,19 +57,36 @@ services:
       Jwt__Audience: ShopAppUsers
       Jwt__ExpiryHours: "8"
       Gemini__ApiKey: ${GEMINI_API_KEY}
+      Przelewy24__MerchantId: ${P24_MERCHANT_ID:-0}
+      Przelewy24__PosId: ${P24_MERCHANT_ID:-0}
+      Przelewy24__CrcKey: ${P24_CRC_KEY}
+      Przelewy24__ReportKey: ${P24_REPORT_KEY}
+      Przelewy24__Sandbox: "true"
+      App__BaseUrl: "http://localhost:8080"
+      FileStorage__BasePath: "/app/wwwroot/uploads"
     ports:
       - "8080:8080"
     volumes:
       - uploads_data:/app/wwwroot/uploads
+      - logs_data:/app/logs
     depends_on:
       mssql:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
     networks:
       - shopapp_net
 
 volumes:
   mssql_data:
   uploads_data:
+  logs_data:
 
 networks:
   shopapp_net:

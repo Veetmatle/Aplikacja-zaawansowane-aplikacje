@@ -78,6 +78,18 @@ public class CartRepository : Repository<Cart>, ICartRepository
         => await _dbSet
             .Include(c => c.Items).ThenInclude(ci => ci.Item)
             .FirstOrDefaultAsync(c => c.Id == cartId, ct);
+
+    public async Task AddCartItemAsync(CartItem item, CancellationToken ct = default)
+    {
+        _context.Set<CartItem>().Add(item);
+        await _context.SaveChangesAsync(ct);
+    }
+
+    public async Task RemoveCartItemAsync(CartItem item, CancellationToken ct = default)
+    {
+        _context.Set<CartItem>().Remove(item);
+        await _context.SaveChangesAsync(ct);
+    }
 }
 
 public class OrderRepository : Repository<Order>, IOrderRepository

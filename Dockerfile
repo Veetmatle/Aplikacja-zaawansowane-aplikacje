@@ -18,14 +18,17 @@ RUN dotnet publish "ShopApp.API.csproj" -c Release -o /app/publish --no-restore
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
 WORKDIR /app
 
-# Create non-root user for security
-RUN adduser --disabled-password --gecos '' appuser && chown -R appuser /app
-USER appuser
-
+# Copy published files first (as root)
 COPY --from=build /app/publish .
 
-# Create upload directory
-RUN mkdir -p /app/wwwroot/uploads
+# Create upload & logs directories, then create non-root user and set ownership
+RUN mkdir -p /app/wwwroot/uploads /app/logs \
+    && adduser --disabled-password --gecos '' appuser \
+    && chown -R appuser:appuser /app
+
+USER appuser
 
 EXPOSE 8080
+ENV ASPNETCORE_URLS=http://+:8080
+
 ENTRYPOINT ["dotnet", "ShopApp.API.dll"]

@@ -21,6 +21,8 @@ public interface ICartRepository : IRepository<Cart>
     Task<Cart?> GetByUserIdAsync(Guid userId, CancellationToken ct = default);
     Task<Cart?> GetBySessionIdAsync(string sessionId, CancellationToken ct = default);
     Task<Cart?> GetWithItemsAsync(Guid cartId, CancellationToken ct = default);
+    Task AddCartItemAsync(CartItem item, CancellationToken ct = default);
+    Task RemoveCartItemAsync(CartItem item, CancellationToken ct = default);
 }
 
 public interface IOrderRepository : IRepository<Order>
