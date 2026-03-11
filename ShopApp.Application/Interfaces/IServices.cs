@@ -45,6 +45,7 @@ public interface IItemService
     Task<Result<ItemDto>> UpdateAsync(Guid itemId, Guid requestingUserId, UpdateItemDto dto, CancellationToken ct = default);
     Task<Result> DeleteAsync(Guid itemId, Guid requestingUserId, CancellationToken ct = default);
     Task<Result<IEnumerable<ItemSummaryDto>>> GetMyItemsAsync(Guid sellerId, CancellationToken ct = default);
+    Task<Result<IEnumerable<ItemPhotoDto>>> UploadPhotosAsync(Guid itemId, Guid requestingUserId, IEnumerable<(Stream Stream, string FileName, string ContentType, long Size)> files, CancellationToken ct = default);
 }
 
 public interface ICartService

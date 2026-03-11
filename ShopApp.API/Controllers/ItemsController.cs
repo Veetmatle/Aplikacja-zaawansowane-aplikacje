@@ -87,4 +87,29 @@ public class ItemsController : BaseController
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
         => FromResult(await _itemService.DeleteAsync(id, _currentUser.UserId!.Value, ct));
+
+    /// <summary>Upload photos to an item (owner only, max 5 total).</summary>
+    /// <response code="200">Updated list of photos</response>
+    /// <response code="400">Validation error (type/size/count)</response>
+    /// <response code="401">Not authenticated</response>
+    /// <response code="403">Not the item owner</response>
+    /// <response code="404">Item not found</response>
+    [Authorize]
+    [HttpPost("{id:guid}/photos")]
+    [Consumes("multipart/form-data")]
+    [ProducesResponseType(typeof(IEnumerable<Application.DTOs.Item.ItemPhotoDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UploadPhotos(Guid id, [FromForm] IFormFileCollection files, CancellationToken ct)
+    {
+        var fileData = files.Select(f => (
+            Stream: f.OpenReadStream(),
+            FileName: f.FileName,
+            ContentType: f.ContentType,
+            Size: f.Length
+        ));
+        return FromResult(await _itemService.UploadPhotosAsync(id, _currentUser.UserId!.Value, fileData, ct));
+    }
 }

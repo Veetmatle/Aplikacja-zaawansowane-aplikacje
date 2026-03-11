@@ -1,5 +1,7 @@
 ﻿import { create } from 'zustand';
 
+let initPromise: Promise<string> | null = null;
+
 interface CartUIState {
   isOpen: boolean;
   sessionId: string | null;
@@ -18,24 +20,32 @@ export const useCartStore = create<CartUIState>()((set, get) => ({
   toggleCart: () => set((s) => ({ isOpen: !s.isOpen })),
 
   initSession: async () => {
-    const existing = get().sessionId;
-    if (existing) return existing;
-
-    const stored = localStorage.getItem('shopapp-session-id');
-    if (stored) {
-      set({ sessionId: stored });
-      return stored;
+    // Return existing session
+    const existing = get().sessionId || localStorage.getItem('shopapp-session-id');
+    if (existing) {
+      set({ sessionId: existing });
+      return existing;
     }
 
-    // Request session from backend
-    const response = await fetch(
-      (import.meta.env.VITE_API_URL || '/api') + '/cart/session',
-      { method: 'POST' }
-    );
-    const data = await response.json();
-    const sid: string = data.sessionId;
-    localStorage.setItem('shopapp-session-id', sid);
-    set({ sessionId: sid });
-    return sid;
+    // Deduplicate concurrent calls
+    if (initPromise) return initPromise;
+
+    initPromise = (async () => {
+      const response = await fetch(
+        (import.meta.env.VITE_API_URL || '/api') + '/cart/session',
+        { method: 'POST' }
+      );
+      const data = await response.json();
+      const sid: string = data.sessionId;
+      localStorage.setItem('shopapp-session-id', sid);
+      set({ sessionId: sid });
+      return sid;
+    })();
+
+    try {
+      return await initPromise;
+    } finally {
+      initPromise = null;
+    }
   },
 }));

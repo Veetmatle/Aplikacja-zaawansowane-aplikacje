@@ -9,6 +9,10 @@ export function useItems(params: ItemQueryParams) {
     queryKey: ['items', params],
     queryFn: () => itemsApi.getItems(params),
     placeholderData: (prev) => prev,
+    select: (data) => ({
+      ...data,
+      totalPages: data.totalPages ?? Math.ceil(data.totalCount / (data.pageSize || 12)),
+    }),
   });
 }
 
@@ -66,3 +70,17 @@ export function useDeleteItem() {
     },
   });
 }
+
+export function useUploadPhotos() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ itemId, files }: { itemId: string; files: File[] }) =>
+      itemsApi.uploadPhotos(itemId, files),
+    onSuccess: (_, { itemId }) => {
+      qc.invalidateQueries({ queryKey: ['items', itemId] });
+      toast.success('Zdjęcia przesłane!');
+    },
+  });
+}
+

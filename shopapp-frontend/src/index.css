@@ -6,26 +6,27 @@
 
 @layer base {
   :root {
-    --background: 225 20% 7%;
-    --foreground: 35 10% 91%;
-    --card: 225 18% 11%;
-    --card-foreground: 35 10% 91%;
-    --popover: 225 18% 11%;
-    --popover-foreground: 35 10% 91%;
-    --primary: 43 96% 56%;
-    --primary-foreground: 225 20% 7%;
-    --secondary: 225 16% 16%;
-    --secondary-foreground: 35 10% 91%;
-    --muted: 225 14% 18%;
-    --muted-foreground: 225 10% 55%;
-    --accent: 43 96% 56%;
-    --accent-foreground: 225 20% 7%;
+    --background: 220 25% 6%;
+    --foreground: 210 20% 93%;
+    --card: 220 22% 10%;
+    --card-foreground: 210 20% 93%;
+    --popover: 220 22% 10%;
+    --popover-foreground: 210 20% 93%;
+    --primary: 213 94% 58%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 18% 15%;
+    --secondary-foreground: 210 20% 93%;
+    --muted: 220 15% 18%;
+    --muted-foreground: 215 15% 55%;
+    --accent: 38 92% 50%;
+    --accent-foreground: 220 25% 6%;
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
-    --border: 225 14% 20%;
-    --input: 225 14% 20%;
-    --ring: 43 96% 56%;
+    --border: 220 18% 18%;
+    --input: 220 18% 14%;
+    --ring: 213 94% 58%;
     --radius: 0.75rem;
+    --navbar: 210 30% 8%;
   }
 
   * {
@@ -38,5 +39,15 @@
 
   h1, h2, h3, h4 {
     @apply font-display;
+  }
+}
+
+@layer utilities {
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
   }
 }

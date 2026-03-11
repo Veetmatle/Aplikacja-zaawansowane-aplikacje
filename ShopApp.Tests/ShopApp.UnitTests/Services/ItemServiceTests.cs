@@ -14,6 +14,7 @@ public class ItemServiceTests
     private readonly IItemRepository _itemRepo;
     private readonly ICategoryRepository _categoryRepo;
     private readonly IViewCountTracker _viewCountTracker;
+    private readonly IFileStorageService _fileStorage;
     private readonly ItemService _sut;
 
     public ItemServiceTests()
@@ -21,7 +22,8 @@ public class ItemServiceTests
         _itemRepo = Substitute.For<IItemRepository>();
         _categoryRepo = Substitute.For<ICategoryRepository>();
         _viewCountTracker = Substitute.For<IViewCountTracker>();
-        _sut = new ItemService(_itemRepo, _categoryRepo, _viewCountTracker);
+        _fileStorage = Substitute.For<IFileStorageService>();
+        _sut = new ItemService(_itemRepo, _categoryRepo, _viewCountTracker, _fileStorage);
     }
 
     [Fact]

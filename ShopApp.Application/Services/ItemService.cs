@@ -17,15 +17,23 @@ public class ItemService : IItemService
     private readonly IItemRepository _itemRepository;
     private readonly ICategoryRepository _categoryRepository;
     private readonly IViewCountTracker _viewCountTracker;
+    private readonly IFileStorageService _fileStorage;
+
+    private static readonly HashSet<string> AllowedTypes = new(StringComparer.OrdinalIgnoreCase)
+        { "image/jpeg", "image/png", "image/webp" };
+    private const long MaxFileSize = 5 * 1024 * 1024; // 5 MB
+    private const int MaxPhotosPerItem = 5;
 
     public ItemService(
         IItemRepository itemRepository,
         ICategoryRepository categoryRepository,
-        IViewCountTracker viewCountTracker)
+        IViewCountTracker viewCountTracker,
+        IFileStorageService fileStorage)
     {
         _itemRepository = itemRepository;
         _categoryRepository = categoryRepository;
         _viewCountTracker = viewCountTracker;
+        _fileStorage = fileStorage;
     }
 
     public async Task<Result<PagedResult<ItemSummaryDto>>> GetItemsAsync(ItemQueryDto query, CancellationToken ct = default)
@@ -116,6 +124,52 @@ public class ItemService : IItemService
             i.Category?.Name ?? "", $"{i.Seller?.FirstName} {i.Seller?.LastName}",
             i.Photos.FirstOrDefault(p => p.IsPrimary)?.Url));
         return Result<IEnumerable<ItemSummaryDto>>.Success(dtos);
+    }
+
+    public async Task<Result<IEnumerable<ItemPhotoDto>>> UploadPhotosAsync(
+        Guid itemId, Guid requestingUserId,
+        IEnumerable<(Stream Stream, string FileName, string ContentType, long Size)> files,
+        CancellationToken ct = default)
+    {
+        var item = await _itemRepository.GetWithDetailsAsync(itemId, ct);
+        if (item is null) return Result<IEnumerable<ItemPhotoDto>>.NotFound();
+        if (item.SellerId != requestingUserId) return Result<IEnumerable<ItemPhotoDto>>.Forbidden();
+
+        var fileList = files.ToList();
+        if (item.Photos.Count + fileList.Count > MaxPhotosPerItem)
+            return Result<IEnumerable<ItemPhotoDto>>.Failure(
+                $"Maximum {MaxPhotosPerItem} photos per item. Currently {item.Photos.Count}, trying to add {fileList.Count}.");
+
+        foreach (var f in fileList)
+        {
+            if (!AllowedTypes.Contains(f.ContentType))
+                return Result<IEnumerable<ItemPhotoDto>>.Failure($"File type '{f.ContentType}' not allowed. Use JPEG, PNG or WebP.");
+            if (f.Size > MaxFileSize)
+                return Result<IEnumerable<ItemPhotoDto>>.Failure($"File '{f.FileName}' exceeds 5 MB limit.");
+        }
+
+        var hasPrimary = item.Photos.Any(p => p.IsPrimary);
+        var order = item.Photos.Count;
+
+        foreach (var f in fileList)
+        {
+            var url = await _fileStorage.UploadAsync(f.Stream, f.FileName, f.ContentType, ct);
+            var photo = new Core.Entities.ItemPhoto
+            {
+                Url = url,
+                AltText = item.Title,
+                IsPrimary = !hasPrimary,
+                Order = order++,
+                ItemId = itemId,
+            };
+            item.Photos.Add(photo);
+            hasPrimary = true;
+        }
+
+        await _itemRepository.UpdateAsync(item, ct);
+
+        return Result<IEnumerable<ItemPhotoDto>>.Success(
+            item.Photos.Select(p => new ItemPhotoDto(p.Id, p.Url, p.AltText, p.IsPrimary, p.Order)));
     }
 
     private static ItemDto MapToDto(Core.Entities.Item item) => new(
