@@ -63,4 +63,27 @@ describe('authStore', () => {
     useAuthStore.getState().setAuth(mockAuthResponse);
     expect(useAuthStore.getState().isAdmin()).toBe(false);
   });
+
+  it('isAdmin returns false when user is null', () => {
+    expect(useAuthStore.getState().isAdmin()).toBe(false);
+  });
+
+  it('isAdmin returns false when roles is undefined (corrupted state)', () => {
+    // Simulate corrupted localStorage rehydration
+    useAuthStore.setState({
+      user: { userId: 'x', email: 'x', firstName: 'x', lastName: 'x', roles: undefined as unknown as string[] },
+      isAuthenticated: true,
+      accessToken: 'tok',
+      refreshToken: 'ref',
+    });
+    expect(useAuthStore.getState().isAdmin()).toBe(false);
+  });
+
+  it('setAuth handles missing roles in response', () => {
+    const noRolesResponse = { ...mockAuthResponse, roles: undefined as unknown as string[] };
+    useAuthStore.getState().setAuth(noRolesResponse);
+    const state = useAuthStore.getState();
+    expect(Array.isArray(state.user?.roles)).toBe(true);
+    expect(state.user?.roles).toEqual([]);
+  });
 });

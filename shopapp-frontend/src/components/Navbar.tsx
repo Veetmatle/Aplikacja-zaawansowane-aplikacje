@@ -1,4 +1,4 @@
-﻿import { Link, useNavigate } from 'react-router-dom';
+﻿import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { ShoppingCart, Menu, X, Search, User, LogOut, Package, Shield, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,8 +15,11 @@ export function Navbar() {
   const { data: cart } = useCart();
   const logoutMutation = useLogout();
   const navigate = useNavigate();
+  const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [search, setSearch] = useState('');
+
+  const isHomePage = location.pathname === '/';
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,18 +38,20 @@ export function Navbar() {
           <span className="font-display text-xl font-bold text-primary">ShopApp</span>
         </Link>
 
-        {/* Search — desktop */}
-        <form onSubmit={handleSearch} className="hidden md:flex flex-1 max-w-md mx-8">
-          <div className="relative w-full">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Szukaj ogłoszeń..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-        </form>
+        {/* Search — desktop (hidden on homepage which has its own hero search) */}
+        {!isHomePage && (
+          <form onSubmit={handleSearch} className="hidden md:flex flex-1 max-w-md mx-8">
+            <div className="relative w-full">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Szukaj ogłoszeń..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+          </form>
+        )}
 
         {/* Right side */}
         <div className="flex items-center gap-2">

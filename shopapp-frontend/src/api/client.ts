@@ -17,10 +17,11 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
     config.headers.Authorization = `Bearer ${accessToken}`;
   }
 
-  // Guest cart: send session ID for cart endpoints
+  // Guest cart & chatbot: send session ID
   if (!isAuthenticated) {
     const { sessionId } = useCartStore.getState();
-    if (sessionId && config.url?.includes('/cart')) {
+    const needsSession = config.url?.startsWith('/cart') || config.url?.startsWith('/chatbot');
+    if (sessionId && needsSession) {
       config.headers['X-Session-Id'] = sessionId;
     }
   }

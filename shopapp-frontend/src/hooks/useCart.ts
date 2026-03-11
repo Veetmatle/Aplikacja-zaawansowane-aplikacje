@@ -9,6 +9,11 @@ export function useCart() {
     queryKey: ['cart'],
     queryFn: () => cartApi.getCart(),
     staleTime: 30 * 1000, // 30s — cart changes often
+    select: (data) => ({
+      ...data,
+      // Compute totalItems in case backend doesn't provide it
+      totalItems: data.totalItems ?? data.items.reduce((sum, it) => sum + it.quantity, 0),
+    }),
   });
 }
 

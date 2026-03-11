@@ -2,6 +2,9 @@
 import type { CartDto, AddToCartRequest, UpdateCartItemRequest } from '@/types/api';
 
 export const cartApi = {
+  createSession: () =>
+    api.post<{ sessionId: string }>('/cart/session').then((r) => r.data),
+
   getCart: () =>
     api.get<CartDto>('/cart').then((r) => r.data),
 
@@ -16,4 +19,7 @@ export const cartApi = {
 
   clear: () =>
     api.delete('/cart').then((r) => r.data),
+
+  merge: (sessionId: string) =>
+    api.post('/cart/merge', { sessionId }).then((r) => r.data),
 };

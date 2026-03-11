@@ -36,7 +36,7 @@ export const useAuthStore = create<AuthState>()(
             email: response.email,
             firstName: response.firstName,
             lastName: response.lastName,
-            roles: response.roles,
+            roles: Array.isArray(response.roles) ? response.roles : [],
           },
           accessToken: response.accessToken,
           refreshToken: response.refreshToken,
@@ -59,7 +59,7 @@ export const useAuthStore = create<AuthState>()(
 
       isAdmin: () => {
         const { user } = get();
-        return user?.roles.includes('Admin') ?? false;
+        return Array.isArray(user?.roles) && user.roles.includes('Admin');
       },
     }),
     {
@@ -70,6 +70,11 @@ export const useAuthStore = create<AuthState>()(
         refreshToken: state.refreshToken,
         isAuthenticated: state.isAuthenticated,
       }),
+      onRehydrateStorage: () => (state) => {
+        if (state?.user && !Array.isArray(state.user.roles)) {
+          state.user.roles = [];
+        }
+      },
     }
   )
 );
